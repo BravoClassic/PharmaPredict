@@ -1,0 +1,26 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.py[cod]
+*.log
+build/
+dist/
+*.spec
+.DS_Store
+.idea/
+.vscode/
+# Keep synthetic datasets outside source control until reviewed
+/data/*.xlsx
+/data/*.xls
+/data/*.csv
+!/data/.gitkeep
+# Local ML models and credentials
+/models/
+*.pem
+*.key
