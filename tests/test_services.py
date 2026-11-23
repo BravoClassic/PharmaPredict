@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -12,10 +12,13 @@ class FakeRepo:
     def __init__(self):
         self.balances = {"B1": 5, "B2": 7}
 
+    def reference_timestamp(self) -> datetime:
+        return datetime(2016, 11, 7, 12, 0, 0)
+
     def eligible_batches(self, pharmacy_id: str, medication_id: str):
         return [
-            EligibleBatch("B1", pharmacy_id, medication_id, "LOT1", date(2027,1,1), 5),
-            EligibleBatch("B2", pharmacy_id, medication_id, "LOT2", date(2027,2,1), 7),
+            EligibleBatch("B1", pharmacy_id, medication_id, "LOT1", date(2017, 1, 1), 5),
+            EligibleBatch("B2", pharmacy_id, medication_id, "LOT2", date(2017, 2, 1), 7),
         ]
 
     def batch_balance_for_update(self, batch_id: str) -> int:
@@ -40,20 +43,39 @@ def build_service():
 def test_dispense_uses_fefo_and_splits_across_batches():
     service, session = build_service()
     result = service.dispense(
-        pharmacy_id="LOC001", medication_id="MED001", quantity=8,
-        rx_number="RX100", employee_id="EMP003"
+        pharmacy_id="LOC001",
+        medication_id="MED001",
+        quantity=8,
+        rx_number="RX100",
+        employee_id="EMP003",
     )
     assert [r.batch_id for r in result] == ["B1", "B2"]
     assert [r.quantity_change for r in result] == [-5, -3]
     assert len(session.executed) == 2
 
 
+def test_dispense_uses_fixture_clock_when_time_not_supplied():
+    service, session = build_service()
+    service.dispense(
+        pharmacy_id="LOC001",
+        medication_id="MED001",
+        quantity=1,
+        rx_number="RX101",
+        employee_id="EMP003",
+    )
+    params = session.executed[0][1]
+    assert params["transaction_timestamp"] == datetime(2016, 11, 7, 12, 0, 0)
+
+
 def test_dispense_rejects_insufficient_stock_before_writes():
     service, session = build_service()
     with pytest.raises(InsufficientStockError):
         service.dispense(
-            pharmacy_id="LOC001", medication_id="MED001", quantity=13,
-            rx_number="RX100", employee_id="EMP003"
+            pharmacy_id="LOC001",
+            medication_id="MED001",
+            quantity=13,
+            rx_number="RX100",
+            employee_id="EMP003",
         )
     assert session.executed == []
 
@@ -62,6 +84,9 @@ def test_dispense_requires_positive_quantity():
     service, _ = build_service()
     with pytest.raises(ValueError):
         service.dispense(
-            pharmacy_id="LOC001", medication_id="MED001", quantity=0,
-            rx_number="RX100", employee_id="EMP003"
+            pharmacy_id="LOC001",
+            medication_id="MED001",
+            quantity=0,
+            rx_number="RX100",
+            employee_id="EMP003",
         )
