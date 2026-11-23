@@ -1,6 +1,7 @@
 """Read repositories for inventory and medication data."""
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import text
@@ -12,6 +13,12 @@ from .dto import EligibleBatch, InventorySummary
 class InventoryRepository:
     def __init__(self, session: Session):
         self.session = session
+
+    def reference_timestamp(self) -> datetime:
+        value = self.session.scalar(text("SELECT AsOfTimestamp FROM vw_reference_clock"))
+        if value is None:
+            raise RuntimeError("database reference clock is unavailable")
+        return value
 
     def inventory_summary(self, pharmacy_id: str) -> list[InventorySummary]:
         rows = self.session.execute(
