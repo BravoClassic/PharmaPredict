@@ -38,12 +38,13 @@ class InventoryService:
         if not rx_number.strip():
             raise ValueError("rx_number is required")
 
-        at = at or datetime.now()
+        # The synthetic fixture is historical. When no explicit event time is supplied,
+        # use the fixture reference clock instead of the computer's wall-clock date.
+        at = at or self.repo.reference_timestamp()
         candidates = self.repo.eligible_batches(pharmacy_id, medication_id)
-        if sum(b.quantity_on_hand for b in candidates) < quantity:
-            raise InsufficientStockError(
-                f"requested {quantity}, available {sum(b.quantity_on_hand for b in candidates)}"
-            )
+        available = sum(b.quantity_on_hand for b in candidates)
+        if available < quantity:
+            raise InsufficientStockError(f"requested {quantity}, available {available}")
 
         remaining = quantity
         results: list[MovementResult] = []
