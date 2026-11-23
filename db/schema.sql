@@ -244,6 +244,13 @@ GROUP BY
   pm.PharmacyID,m.MedicationID,m.DisplayName,
   pm.ReorderPoint,pm.TargetDaysOnHand,pm.LeadTimeDays;
 
+-- The source fixture is historical (2015–2016). For repeatable demos and tests,
+-- "now" is the latest transaction timestamp in the loaded fixture. A production
+-- deployment can replace this view with CURRENT_TIMESTAMP().
+CREATE OR REPLACE VIEW vw_reference_clock AS
+SELECT COALESCE(MAX(TransactionTimestamp), CURRENT_TIMESTAMP()) AS AsOfTimestamp
+FROM InventoryTransaction;
+
 CREATE OR REPLACE VIEW vw_fefo_eligible AS
 SELECT
   bb.BatchID,
@@ -253,13 +260,15 @@ SELECT
   bb.ExpirationDate,
   bb.QuantityOnHand
 FROM vw_batch_balance bb
+CROSS JOIN vw_reference_clock c
 WHERE bb.QuantityOnHand > 0
-  AND bb.ExpirationDate > CURRENT_DATE();
+  AND bb.ExpirationDate > DATE(c.AsOfTimestamp);
 
 CREATE OR REPLACE VIEW vw_expiring_60d AS
-SELECT *
-FROM vw_fefo_eligible
-WHERE ExpirationDate <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY);
+SELECT e.*
+FROM vw_fefo_eligible e
+CROSS JOIN vw_reference_clock c
+WHERE e.ExpirationDate <= DATE_ADD(DATE(c.AsOfTimestamp), INTERVAL 60 DAY);
 
 CREATE OR REPLACE VIEW vw_po_status AS
 SELECT
